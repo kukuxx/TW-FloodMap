@@ -5,14 +5,39 @@
 
 // 全域 AbortController（用於取消請求）
 let currentAbortController = null;
+const API_PAGE_SIZE = 300;
 
 // API 端點配置
 const API_CONFIG = {
     // 水利署自建感測器
-    wra: 'https://sta.ci.taiwan.gov.tw/STA_WaterResource_v2/v1.0/Datastreams?$top=1000&$expand=Thing,Thing/Locations,Observations($orderby=phenomenonTime desc;$top=1)&$filter=Thing/properties/authority_type eq \'水利署\' and substringof(\'Datastream_Category_type=淹水感測器\',description) and substringof(\'Datastream_Category=淹水深度\',description)&$count=true',
+    wra: "https://sta.colife.org.tw/STA_WaterResource_v2/v1.0/Datastreams" +
+        "?$top=300" +
+        "&$skip=0" +
+        "&$filter=(" +
+        "(Thing/properties/authority_type eq '水利署')" +
+        " and substringof('Datastream_Category_type=淹水感測器',description)" +
+        " and substringof('Datastream_Category=淹水深度',description)" +
+        ")" +
+        "&$expand=" +
+        "Thing($expand=Locations;$orderby=@iot.id asc)," +
+        "Observations($top=1;$skip=0;$orderby=phenomenonTime desc,@iot.id asc)" +
+        "&$orderby=@iot.id asc" +
+        "&$count=true",
 
     // 水利署與縣市政府合建感測器
-    joint: 'https://sta.ci.taiwan.gov.tw/STA_WaterResource_v2/v1.0/Datastreams?$top=1000&$expand=Thing,Thing/Locations,Observations($orderby=phenomenonTime desc;$top=1)&$filter=Thing/properties/authority_type eq \'水利署（與縣市政府合建）\' and substringof(\'Datastream_Category_type=淹水感測器\',description) and substringof(\'Datastream_Category=淹水深度\',description)&$count=true'
+    joint: "https://sta.colife.org.tw/STA_WaterResource_v2/v1.0/Datastreams" +
+        "?$top=300" +
+        "&$skip=0" +
+        "&$filter=(" +
+        "(Thing/properties/authority_type eq '水利署（與縣市政府合建）')" +
+        " and substringof('Datastream_Category_type=淹水感測器',description)" +
+        " and substringof('Datastream_Category=淹水深度',description)" +
+        ")" +
+        "&$expand=" +
+        "Thing($expand=Locations;$orderby=@iot.id asc)," +
+        "Observations($top=1;$skip=0;$orderby=phenomenonTime desc,@iot.id asc)" +
+        "&$orderby=@iot.id asc" +
+        "&$count=true"
 };
 
 // 快取配置
@@ -145,53 +170,111 @@ function processSensor(sensor, authorityType) {
 }
 
 /**
- * 從單一 API 端點擷取資料（支援逾時和取消）
+ * 從單一 API 端點擷取資料(並行分頁請求)
  * @param {string} url - API URL
- * @param {string} sourceType - 資料來源類型（用於 debug）
+ * @param {string} sourceType - 資料來源類型(用於 debug)
  * @param {AbortSignal} signal - AbortController 信號
  * @returns {Promise<Array>} 感測器資料陣列
  */
 async function fetchFromAPI(url, sourceType, signal) {
     console.log(`[FloodSensors] 開始擷取 ${sourceType} 資料...`);
-
-    let allData = [];
-    let nextUrl = url;
+    const startTime = Date.now();
+    const allData = [];
 
     try {
-        while (nextUrl) {
-            // 建立逾時 Promise（10 秒）
-            const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('請求逾時')), 10000);
-            });
+        // 第一次請求:取得總筆數
+        const firstResponse = await Promise.race([
+            fetch(url, { signal }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('首次請求逾時')), 15000))
+        ]);
 
-            // 發起請求（支援取消）
-            const fetchPromise = fetch(nextUrl, { signal });
+        if (!firstResponse.ok) {
+            throw new Error(`HTTP ${firstResponse.status}: ${firstResponse.statusText}`);
+        }
 
-            // 競賽：先完成的 Promise 會「勝出」
-            const response = await Promise.race([fetchPromise, timeoutPromise]);
+        const firstData = await firstResponse.json();
+        allData.push(firstData.value); // 先加入第一頁資料
 
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
+        if (!firstData.value || !Array.isArray(firstData.value)) {
+            console.warn(`[FloodSensors] ${sourceType} 回應格式異常`);
+            return [];
+        }
 
-            const data = await response.json();
+        const totalCount = firstData['@iot.count'];
 
-            if (!data.value || !Array.isArray(data.value)) {
-                console.warn(`[FloodSensors] ${sourceType} 回應格式異常`);
-                break;
-            }
+        if (!totalCount) {
+            console.warn(`[FloodSensors] ${sourceType} 無法取得總筆數,僅返回第一頁`);
+            return allData.flat();
+        }
 
-            allData = allData.concat(data.value);
+        console.log(`[FloodSensors] ${sourceType} 總筆數: ${totalCount}`);
 
-            if (data['@iot.nextLink']) {
-                nextUrl = data['@iot.nextLink'];
-            } else {
-                nextUrl = null;
+        // 如果只有一頁,直接返回
+        const totalPages = Math.ceil(totalCount / API_PAGE_SIZE);
+        if (totalPages === 1) {
+            console.log(`[FloodSensors] ✓ ${sourceType} 擷取完成,共 ${firstData.value.length} 筆 (單頁) - 耗時 ${Date.now() - startTime}ms`);
+            return allData.flat();
+        }
+
+        // 建立所有分頁的 URL (從第2頁開始)
+        const pageUrls = [];
+        for (let i = 1; i < totalPages; i++) {
+            const skip = i * API_PAGE_SIZE;
+            // 替換或新增 $skip 參數
+            let pageUrl;
+            pageUrl = url.replace(/\$skip=\d+/, `$skip=${skip}`);
+            pageUrls.push(pageUrl);
+        }
+
+        console.log(`[FloodSensors] ${sourceType} 準備並行請求剩餘 ${totalPages - 1} 分頁...`);
+
+        // 分批並行請求(每批最多 10 個,避免伺服器限流)
+        const batchSize = 10;
+
+        for (let i = 0; i < pageUrls.length; i += batchSize) {
+            const batch = pageUrls.slice(i, i + batchSize);
+            const batchNumber = Math.floor(i / batchSize) + 1;
+            const totalBatches = Math.ceil(pageUrls.length / batchSize);
+
+            console.log(`[FloodSensors] ${sourceType} 正在處理第 ${batchNumber}/${totalBatches} 批 (${batch.length} 個請求)...`);
+
+            const batchResults = await Promise.all(
+                batch.map(async (pageUrl, index) => {
+                    try {
+                        const response = await Promise.race([
+                            fetch(pageUrl, { signal }),
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('分頁請求逾時')), 15000))
+                        ]);
+
+                        if (!response.ok) {
+                            console.warn(`[FloodSensors] ${sourceType} 第 ${i + index + 2} 頁請求失敗: HTTP ${response.status}`);
+                            return [];
+                        }
+
+                        const data = await response.json();
+                        return data.value || [];
+
+                    } catch (error) {
+                        if (error.name !== 'AbortError') {
+                            console.warn(`[FloodSensors] ${sourceType} 第 ${i + index + 2} 頁擷取失敗:`, error.message);
+                        }
+                        return [];
+                    }
+                })
+            );
+
+            allData.push(...batchResults);
+
+            // 批次間稍微延遲,避免過於密集的請求
+            if (i + batchSize < pageUrls.length) {
+                await new Promise(resolve => setTimeout(resolve, 100));
             }
         }
 
-        console.log(`[FloodSensors] ✓ ${sourceType} 擷取完成，共 ${allData.length} 筆`);
-        return allData;
+        const elapsed = Date.now() - startTime;
+
+        console.log(`[FloodSensors] ✓ ${sourceType} 擷取完成,共 ${allData.length} 筆 (${totalPages} 頁並行) - 耗時 ${elapsed}ms`);
+        return allData.flat();
 
     } catch (error) {
         if (error.name === 'AbortError') {
@@ -199,7 +282,7 @@ async function fetchFromAPI(url, sourceType, signal) {
         } else {
             console.error(`[FloodSensors] ✗ ${sourceType} 擷取失敗:`, error.message);
         }
-        return allData; // 即使錯誤，也回傳已取得的資料
+        return allData.flat();
     }
 }
 
