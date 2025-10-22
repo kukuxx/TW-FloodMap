@@ -1,0 +1,423 @@
+/* ========== 全域樣式重置 ========== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html,
+body {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+}
+
+/* ========== 地圖容器 ========== */
+#map {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+}
+
+/* ========== 載入動畫 ========== */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.95);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+
+/* ========== Marker Cluster 樣式 ========== */
+.marker-cluster {
+    background-clip: padding-box;
+    border-radius: 50%;
+    will-change: transform;
+    /* GPU 加速群集動畫 */
+}
+
+.marker-cluster div {
+    width: 36px;
+    height: 36px;
+    margin-left: 2px;
+    margin-top: 2px;
+    text-align: center;
+    border-radius: 50%;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.marker-cluster-small {
+    background-color: rgba(100, 116, 139, 0.6);
+}
+
+.marker-cluster-small div {
+    background-color: rgba(100, 116, 139, 0.8);
+    color: white;
+    font-size: 12px;
+}
+
+.marker-cluster-medium {
+    background-color: rgba(71, 85, 105, 0.6);
+}
+
+.marker-cluster-medium div {
+    background-color: rgba(71, 85, 105, 0.8);
+    color: white;
+    font-size: 13px;
+}
+
+.marker-cluster-large {
+    background-color: rgba(51, 65, 85, 0.6);
+}
+
+.marker-cluster-large div {
+    background-color: rgba(51, 65, 85, 0.8);
+    color: white;
+    font-size: 14px;
+}
+
+/* ========== Leaflet Popup 樣式 ========== */
+.leaflet-popup-content-wrapper {
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.leaflet-popup-content {
+    margin: 12px;
+    font-size: 14px;
+}
+
+/* ========== Leaflet 控制項基礎樣式 ========== */
+.leaflet-control {
+    margin: 0.5rem !important;
+}
+
+.leaflet-top.leaflet-right {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-start;
+    padding: 1rem;
+    max-width: 100vw;
+    max-height: 100vh;
+    overflow: hidden;
+    pointer-events: none;
+    /* 避免整個容器擋住地圖 */
+}
+
+/* ========== 自訂控制項容器（整合三個控制項） ========== */
+.custom-control-container {
+    position: relative;
+    top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    transform-origin: top right;
+    transition: transform 0.3s ease;
+    max-width: min(90vw, 280px);
+    /* 防止太寬 */
+    max-height: calc(120vh - 4rem);
+    /* 防止太高 */
+    overflow: auto;
+    /* 若內容太長可捲動 */
+    pointer-events: auto;
+    /* 保留內部按鈕可操作 */
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* ========== 操作按鈕控制項樣式 ========== */
+.action-buttons-control {
+    background: white;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.control-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 600;
+    width: 100%;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+    will-change: background-color, transform;
+    /* GPU 加速 */
+}
+
+.control-btn:active {
+    transform: scale(0.98);
+    /* 點擊回饋 */
+}
+
+.locate-btn {
+    background: white;
+    color: #1F2937;
+    margin-bottom: 0.5rem;
+}
+
+.locate-btn:hover {
+    background: #F3F4F6;
+}
+
+.refresh-btn {
+    background: #2563EB;
+    color: white;
+}
+
+.refresh-btn:hover {
+    background: #1D4ED8;
+}
+
+.btn-icon {
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+/* ========== 圖例控制項樣式 ========== */
+.legend-control {
+    background: white;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    font-size: 0.75rem;
+    max-width: 200px;
+}
+
+.legend-title {
+    font-weight: bold;
+    margin-bottom: 0.75rem;
+    font-size: 0.875rem;
+    color: #1F2937;
+}
+
+.legend-items {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.legend-marker {
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    border: 2px solid white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    flex-shrink: 0;
+}
+
+.depth-none {
+    background: #77a9faff;
+}
+
+.depth-low {
+    background: #10B981;
+}
+
+.depth-medium {
+    background: #d6f50bff;
+}
+
+.depth-high {
+    background: #f18538ff;
+}
+
+.depth-critical {
+    background: #cb0d0dff;
+}
+
+.depth-nodata {
+    background: #9CA3AF;
+}
+
+.source-wra {
+    background: #D1D5DB;
+    border-color: #2563EB;
+}
+
+.source-joint {
+    background: #D1D5DB;
+    border-color: #9333EA;
+}
+
+.legend-cluster {
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    background: rgba(71, 85, 105, 0.8);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    font-weight: bold;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    flex-shrink: 0;
+}
+
+.legend-section {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #E5E7EB;
+}
+
+.legend-subtitle {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    font-size: 0.75rem;
+    color: #1F2937;
+}
+
+.legend-text-small {
+    font-size: 0.7rem;
+}
+
+/* ========== 統計資訊控制項樣式 ========== */
+.stats-control {
+    background: white;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    font-size: 0.75rem;
+    min-width: 150px;
+}
+
+.stats-title {
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+    color: #1F2937;
+}
+
+.stats-items {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.stats-item {
+    color: #6B7280;
+}
+
+.stats-value {
+    font-weight: 600;
+    color: #1F2937;
+}
+
+.stats-wra {
+    color: #2563EB;
+}
+
+.stats-joint {
+    color: #9333EA;
+}
+
+.stats-time {
+    font-size: 0.65rem;
+    margin-top: 0.5rem;
+}
+
+/* ========== Popup 樣式 ========== */
+.sensor-popup {
+    font-family: system-ui, -apple-system, sans-serif;
+}
+
+.popup-title {
+    font-size: 1rem;
+    font-weight: bold;
+    color: #1F2937;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #E5E7EB;
+}
+
+.popup-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.popup-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+}
+
+.popup-label {
+    font-size: 0.875rem;
+    color: #6B7280;
+    font-weight: 500;
+}
+
+.popup-value {
+    font-size: 0.875rem;
+    color: #1F2937;
+    font-weight: 600;
+    text-align: right;
+}
+
+.popup-depth {
+    font-size: 1.125rem;
+    font-weight: bold;
+}
+
+.popup-source {
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+}
+
+/* ========== 響應式設計（使用 transform scale） ========== */
+@media (max-width: 1600px) {
+    .custom-control-container {
+        transform: scale(0.8);
+    }
+}
+
+@media (max-width: 1200px) {
+    .custom-control-container {
+        transform: scale(0.7);
+    }
+}
+
+@media (max-width: 1024px) {
+    .custom-control-container {
+        transform: scale(0.6);
+    }
+}
+
+@media (max-width: 768px) {
+    .custom-control-container {
+        transform: scale(0.5);
+    }
+
+    .leaflet-control {
+        margin: 0.2rem !important;
+    }
+}

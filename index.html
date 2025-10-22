@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>台灣淹水感測器即時監測地圖</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+    <!-- 載入動畫覆蓋層 -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600"></div>
+            <p class="mt-4 text-lg font-semibold text-gray-700">載入感測器資料中...</p>
+        </div>
+    </div>
+
+    <!-- 地圖容器 -->
+    <div id="map"></div>
+
+    <!-- ========== HTML 模板區域 ========== -->
+
+    <!-- 模板：整合控制項容器（包含三個子控制項） -->
+    <template id="template-control-container">
+        <div class="custom-control-container">
+            <!-- 操作按鈕 -->
+            <div class="action-buttons-control">
+                <button id="locateBtn" class="control-btn locate-btn">
+                    <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z">
+                        </path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                    <span>定位</span>
+                </button>
+                <button id="refreshBtn" class="control-btn refresh-btn">
+                    <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                        </path>
+                    </svg>
+                    <span>重新整理</span>
+                </button>
+            </div>
+
+            <!-- 圖例 -->
+            <div class="legend-control">
+                <h3 class="legend-title">淹水深度圖例</h3>
+                <div class="legend-items">
+                    <div class="legend-item">
+                        <div class="legend-marker depth-none"></div>
+                        <span>&lt; 1 公分</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-marker depth-low"></div>
+                        <span>&lt; 10 公分</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-marker depth-medium"></div>
+                        <span>10-30 公分</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-marker depth-high"></div>
+                        <span>30-50 公分</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-marker depth-critical"></div>
+                        <span>&gt; 50 公分</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-marker depth-nodata"></div>
+                        <span>無資料</span>
+                    </div>
+                </div>
+                <div class="legend-section">
+                    <p class="legend-subtitle">測站來源</p>
+                    <div class="legend-item">
+                        <div class="legend-marker source-wra"></div>
+                        <span class="legend-text-small">水利署自建</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-marker source-joint"></div>
+                        <span class="legend-text-small">縣市合建</span>
+                    </div>
+                </div>
+                <div class="legend-section">
+                    <p class="legend-subtitle">群集標記</p>
+                    <div class="legend-item">
+                        <div class="legend-cluster">10+</div>
+                        <span class="legend-text-small">多個測站（≥10）</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 統計資訊 -->
+            <div class="stats-control">
+                <h3 class="stats-title">統計資訊</h3>
+                <div class="stats-items">
+                    <p class="stats-item">總測站數: <span id="totalCount" class="stats-value">0</span></p>
+                    <p class="stats-item">水利署: <span id="wraCount" class="stats-value stats-wra">0</span></p>
+                    <p class="stats-item">縣市合建: <span id="jointCount" class="stats-value stats-joint">0</span></p>
+                    <p class="stats-item stats-time">更新時間: <span id="updateTime" class="stats-value">--</span></p>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- 模板：感測器 Popup -->
+    <template id="template-popup">
+        <div class="sensor-popup">
+            <h3 class="popup-title" data-field="name">測站名稱</h3>
+            <div class="popup-content">
+                <div class="popup-row">
+                    <span class="popup-label">測站 ID:</span>
+                    <span class="popup-value" data-field="id">--</span>
+                </div>
+                <div class="popup-row">
+                    <span class="popup-label">測站代碼:</span>
+                    <span class="popup-value" data-field="code">--</span>
+                </div>
+                <div class="popup-row">
+                    <span class="popup-label">淹水深度:</span>
+                    <span class="popup-value popup-depth" data-field="depth">-- cm</span>
+                </div>
+                <div class="popup-row">
+                    <span class="popup-label">觀測時間:</span>
+                    <span class="popup-value" data-field="time">--</span>
+                </div>
+                <div class="popup-row">
+                    <span class="popup-label">資料來源:</span>
+                    <span class="popup-value popup-source" data-field="source">--</span>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" defer></script>
+    <script src="js/flood_sensors.js" defer></script>
+    <script src="js/main.js" defer></script>
+</body>
+
+</html>
